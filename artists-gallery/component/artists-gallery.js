@@ -230,10 +230,12 @@ class ArtistsGallery extends HTMLElement {
   }
 
   get columns() {
+    if (window.matchMedia("(max-width: 480px)").matches) return 2;
     return Number(this.getAttribute("columns")) || 4;
   }
 
   get rows() {
+    if (window.matchMedia("(max-width: 480px)").matches) return 2;
     return Number(this.getAttribute("rows")) || 2;
   }
 
