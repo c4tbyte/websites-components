@@ -98,6 +98,7 @@ TEMPLATE.innerHTML = `
     grid-template-columns: repeat(var(--ag-columns), 1fr);
     gap: var(--ag-card-gap);
     touch-action: pan-y;
+    transition: transform 0.25s ease;
   }
 
   @media (max-width: 900px) {
@@ -107,7 +108,6 @@ TEMPLATE.innerHTML = `
   @media (max-width: 480px) {
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .card { min-width: 0; }
-    .name { font-size: 13px; }
   }
 
   .card {
@@ -115,6 +115,7 @@ TEMPLATE.innerHTML = `
     text-decoration: none;
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   .photo-wrap {
@@ -159,13 +160,18 @@ TEMPLATE.innerHTML = `
   .name {
     margin-top: 12px;
     font-family: var(--ag-font-heading);
-    font-size: 18px;
     font-weight: 700;
     letter-spacing: var(--ag-label-tracking);
     text-transform: uppercase;
     text-align: center;
-    word-break: break-word;
-}
+    white-space: nowrap;
+    overflow: hidden;
+    max-width: 100%;
+  }
+
+  .name.wraps {
+    white-space: normal;
+  }
 
   .name.placeholder {
     color: rgba(255, 255, 255, 0.25);
@@ -337,6 +343,33 @@ class ArtistsGallery extends HTMLElement {
 
       grid.appendChild(card);
     });
+
+    requestAnimationFrame(() => this._fitNames());
+  }
+
+  // Single-word names shrink to fit on one line.
+  // Multi-word names wrap onto a second line at normal size instead.
+  _fitNames() {
+    const names = this.shadowRoot.querySelectorAll(".name");
+    names.forEach((el) => {
+      const text = el.textContent.trim();
+      const hasMultipleWords = text.includes(" ");
+
+      if (hasMultipleWords) {
+        el.classList.add("wraps");
+        el.style.fontSize = "";
+        return;
+      }
+
+      el.classList.remove("wraps");
+      let fontSize = 18;
+      el.style.fontSize = fontSize + "px";
+
+      while (el.scrollWidth > el.clientWidth && fontSize > 10) {
+        fontSize -= 1;
+        el.style.fontSize = fontSize + "px";
+      }
+    });
   }
 
   _goToPage(page) {
@@ -346,6 +379,10 @@ class ArtistsGallery extends HTMLElement {
     if (page >= totalPages) page = 0;
     this._page = page;
     this._renderPage();
+  }
+
+  _totalPages() {
+    return Math.max(1, Math.ceil(this._allArtists.length / this.perPage));
   }
 
   _toggleArrows(show) {
@@ -379,20 +416,60 @@ class ArtistsGallery extends HTMLElement {
 
     let startX = 0;
     let startY = 0;
+    let currentX = 0;
+    let dragging = false;
+    let horizontal = null;
 
     grid.addEventListener("touchstart", (e) => {
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
+      currentX = startX;
+      dragging = true;
+      horizontal = null;
+      grid.style.transition = "none";
     }, { passive: true });
 
-    grid.addEventListener("touchend", (e) => {
-      const dx = e.changedTouches[0].clientX - startX;
-      const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-        if (dx < 0) this._goToPage(this._page + 1);
-        else this._goToPage(this._page - 1);
+    grid.addEventListener("touchmove", (e) => {
+      if (!dragging) return;
+      currentX = e.touches[0].clientX;
+      const dx = currentX - startX;
+      const dy = e.touches[0].clientY - startY;
+
+      if (horizontal === null) {
+        horizontal = Math.abs(dx) > Math.abs(dy);
       }
+      if (!horizontal) return;
+
+      const atStart = this._page === 0;
+      const atEnd = this._page >= this._totalPages() - 1;
+      const resisted = (atStart && dx > 0) || (atEnd && dx < 0) ? dx * 0.35 : dx;
+      grid.style.transform = `translateX(${resisted}px)`;
     }, { passive: true });
+
+    grid.addEventListener("touchend", () => {
+      if (!dragging) return;
+      dragging = false;
+      const dx = currentX - startX;
+      grid.style.transition = "transform 0.25s ease";
+
+      if (horizontal && Math.abs(dx) > 50) {
+        const dir = dx < 0 ? 1 : -1;
+        const width = grid.clientWidth;
+        grid.style.transform = `translateX(${-dir * width}px)`;
+
+        setTimeout(() => {
+          grid.style.transition = "none";
+          grid.style.transform = `translateX(${dir * width}px)`;
+          this._goToPage(this._page + dir);
+          requestAnimationFrame(() => {
+            grid.style.transition = "transform 0.25s ease";
+            grid.style.transform = "translateX(0)";
+          });
+        }, 250);
+      } else {
+        grid.style.transform = "translateX(0)";
+      }
+    });
   }
 }
 
