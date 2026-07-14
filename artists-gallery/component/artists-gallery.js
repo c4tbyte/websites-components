@@ -107,6 +107,7 @@ TEMPLATE.innerHTML = `
   @media (max-width: 480px) {
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .card { min-width: 0; }
+    .name { font-size: 13px; }
   }
 
   .card {
@@ -163,7 +164,8 @@ TEMPLATE.innerHTML = `
     letter-spacing: var(--ag-label-tracking);
     text-transform: uppercase;
     text-align: center;
-  }
+    word-break: break-word;
+}
 
   .name.placeholder {
     color: rgba(255, 255, 255, 0.25);
