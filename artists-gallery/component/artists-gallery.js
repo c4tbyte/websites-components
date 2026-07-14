@@ -102,12 +102,11 @@ TEMPLATE.innerHTML = `
   }
 
   @media (max-width: 900px) {
-    .grid { grid-template-columns: repeat(2, 1fr); }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   @media (max-width: 480px) {
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .card { min-width: 0; }
   }
 
   .card {
