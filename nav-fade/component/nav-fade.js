@@ -1,6 +1,7 @@
 // nav-fade — site header web component
 // Logo on the left, nav links centered, social icons on the right.
 // Background fades to transparent at the bottom so it can sit over a hero image.
+// On mobile, nav links collapse into a hamburger menu.
 //
 // Usage:
 // <nav-fade
@@ -10,9 +11,6 @@
 //   links="ARTISTS|/artists,RELEASES|/releases,STORE|/store"
 //   social="instagram|https://instagram.com/yourhandle,email|mailto:you@example.com"
 // ></nav-fade>
-//
-// links/social attributes are comma-separated "label|url" pairs.
-// Known social types get an icon (see ICONS below); anything else falls back to text.
 
 const ICONS = {
   instagram: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>`,
@@ -43,6 +41,7 @@ template.innerHTML = `
     --nav-padding-y: 18px;
     --nav-padding-x: 24px;
     --nav-fade-height: 0px;
+    --nav-mobile-breakpoint: 720px;
 
     position: relative;
     display: block;
@@ -54,7 +53,7 @@ template.innerHTML = `
 
   .bar {
     display: grid;
-    grid-template-columns: auto 1fr auto; /* logo / links / socials — links get all the leftover space */
+    grid-template-columns: auto 1fr auto;
     align-items: center;
     gap: 20px;
     padding: var(--nav-padding-y) var(--nav-padding-x);
@@ -120,6 +119,60 @@ template.innerHTML = `
     text-transform: uppercase;
   }
 
+  /* Hamburger button — hidden on desktop by default */
+  .hamburger {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    justify-self: start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .hamburger span {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--nav-fg);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .hamburger.open span:nth-child(2) { opacity: 0; }
+  .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* Mobile dropdown panel — hidden until opened */
+  .mobile-menu {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 24px 28px;
+    background: var(--nav-bg-start);
+  }
+
+  .mobile-menu.open {
+    display: flex;
+  }
+
+  .mobile-menu a {
+    color: var(--nav-fg);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: var(--nav-font-weight);
+    letter-spacing: var(--nav-letter-spacing);
+    text-transform: uppercase;
+  }
+
+  .mobile-menu a:hover { opacity: 0.7; }
+
+  .mobile-menu .social {
+    justify-content: center;
+    margin-top: 4px;
+  }
+
   /* soft gradient trailing off below the bar, for overlaying on a hero image */
   .fade-tail {
     position: absolute;
@@ -133,19 +186,32 @@ template.innerHTML = `
 
   @media (max-width: 720px) {
     .bar {
-      grid-template-columns: 1fr;
-      justify-items: center;
-      gap: 14px;
+      grid-template-columns: auto auto 1fr;
     }
-    .links { gap: 18px; }
+
+    .links {
+      display: none; /* hide the inline links row on mobile */
+    }
+
+    .bar .social {
+      display: none; /* social icons move into the mobile-menu instead */
+    }
+
+    .hamburger {
+      display: flex;
+    }
   }
 </style>
 
 <div class="bar">
   <a class="logo-link" href="#"><img alt="" /></a>
+  <button class="hamburger" aria-label="Toggle menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
   <nav class="links"></nav>
   <div class="social"></div>
 </div>
+<nav class="mobile-menu"></nav>
 <div class="fade-tail"></div>
 `;
 
@@ -162,6 +228,7 @@ class NavFade extends HTMLElement {
 
   connectedCallback() {
     this.render();
+    this.setupHamburger();
   }
 
   attributeChangedCallback() {
@@ -190,24 +257,62 @@ class NavFade extends HTMLElement {
     logoImg.src = this.getAttribute("logo-src") || "";
     logoImg.alt = this.getAttribute("logo-alt") || "";
 
-    // nav links
+    const links = this.parsePairs("links");
+    const social = this.parsePairs("social");
+
+    // desktop nav links
     const linksEl = root.querySelector(".links");
-    linksEl.innerHTML = this.parsePairs("links")
+    linksEl.innerHTML = links
       .map(({ label, url }) => `<a href="${this.escapeAttr(url)}">${this.escapeText(label)}</a>`)
       .join("");
 
-    // social icons
-    const socialEl = root.querySelector(".social");
-    socialEl.innerHTML = this.parsePairs("social")
+    // desktop social icons
+    const socialEl = root.querySelector(".bar .social");
+    socialEl.innerHTML = this.buildSocialHtml(social);
+
+    // mobile dropdown — links + social combined
+    const mobileMenu = root.querySelector(".mobile-menu");
+    const mobileLinksHtml = links
+      .map(({ label, url }) => `<a href="${this.escapeAttr(url)}">${this.escapeText(label)}</a>`)
+      .join("");
+    const mobileSocialHtml = `<div class="social">${this.buildSocialHtml(social)}</div>`;
+    mobileMenu.innerHTML = mobileLinksHtml + mobileSocialHtml;
+
+    // clicking a link in the mobile menu should close it
+    mobileMenu.querySelectorAll("a").forEach((a) => {
+      a.addEventListener("click", () => this.closeMenu());
+    });
+  }
+
+  buildSocialHtml(social) {
+    return social
       .map(({ label: type, url }) => {
         const icon = ICONS[(type || "").toLowerCase()];
         if (icon) {
           return `<a href="${this.escapeAttr(url)}" aria-label="${this.escapeAttr(type)}" target="_blank" rel="noopener">${icon}</a>`;
         }
-        // no icon for this type — just show the label as text
         return `<a class="text-fallback" href="${this.escapeAttr(url)}" target="_blank" rel="noopener">${this.escapeText(type || "link")}</a>`;
       })
       .join("");
+  }
+
+  setupHamburger() {
+    const root = this.shadowRoot;
+    const hamburger = root.querySelector(".hamburger");
+    const mobileMenu = root.querySelector(".mobile-menu");
+
+    hamburger.addEventListener("click", () => {
+      const isOpen = mobileMenu.classList.toggle("open");
+      hamburger.classList.toggle("open", isOpen);
+      hamburger.setAttribute("aria-expanded", String(isOpen));
+    });
+  }
+
+  closeMenu() {
+    const root = this.shadowRoot;
+    root.querySelector(".mobile-menu").classList.remove("open");
+    root.querySelector(".hamburger").classList.remove("open");
+    root.querySelector(".hamburger").setAttribute("aria-expanded", "false");
   }
 
   escapeText(str) {
