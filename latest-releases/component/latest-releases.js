@@ -127,7 +127,7 @@ class LatestReleases extends HTMLElement {
     }
     grid.innerHTML = `<div class="state-message">Loading releases…</div>`;
 
-     return; // TEMP: pausing Spotify calls while testing other stuff — remove this line to re-enable
+    // place return here
 
     try {
       const url = `${this.apiEndpoint}?limit=${this.limit}`;
