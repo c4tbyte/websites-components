@@ -96,7 +96,7 @@ TEMPLATE.innerHTML = `
       .grid { grid-template-columns: repeat(2, 1fr); }
     }
     @media (max-width: 480px) {
-      .grid { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     .card {
@@ -268,6 +268,19 @@ class ArtistsGallery extends HTMLElement {
     };
 
     this._loadData();
+
+    if (!this._resizeListenerAttached) {
+      this._resizeListenerAttached = true;
+      window.addEventListener("resize", () => {
+        this._page = 0;
+        root.host.style.setProperty("--ag-columns", String(this.columns));
+        if (this._allArtists.length > 0) {
+          this._renderPage();
+        } else {
+          this._renderPlaceholders();
+        }
+      });
+    }
   }
 
   attributeChangedCallback() {
