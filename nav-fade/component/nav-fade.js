@@ -184,21 +184,27 @@ template.innerHTML = `
     pointer-events: none;
   }
 
-  @media (max-width: 720px) {
+ @media (max-width: 720px) {
     .bar {
-      grid-template-columns: auto auto 1fr;
+      grid-template-columns: auto 1fr auto;
+    }
+
+    .logo-link {
+      grid-column: 1;
     }
 
     .links {
-      display: none; /* hide the inline links row on mobile */
+      display: none;
     }
 
     .bar .social {
-      display: none; /* social icons move into the mobile-menu instead */
+      display: none;
     }
 
     .hamburger {
       display: flex;
+      grid-column: 3;
+      justify-self: end;
     }
   }
 </style>
