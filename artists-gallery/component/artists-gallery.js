@@ -28,12 +28,14 @@ TEMPLATE.innerHTML = `
     * { box-sizing: border-box; }
 
     .header {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 20px;
       gap: 16px;
+      margin-bottom: 20px;
     }
+
+    .header-spacer { }
 
     .header h2 {
       margin: 0;
@@ -42,15 +44,14 @@ TEMPLATE.innerHTML = `
       font-weight: 700;
       letter-spacing: var(--ag-label-tracking);
       text-transform: uppercase;
+      text-align: center;
     }
 
-    .header-actions {
+    .nav-arrows {
       display: flex;
-      align-items: center;
-      gap: 14px;
+      gap: 10px;
+      justify-self: end;
     }
-
-    .nav-arrows { display: flex; gap: 10px; }
     .nav-arrows[hidden] { display: none; }
 
     .nav-arrows button {
@@ -66,6 +67,12 @@ TEMPLATE.innerHTML = `
 
     .nav-arrows button:hover { opacity: 1; }
     .nav-arrows button:disabled { opacity: 0.25; cursor: default; }
+
+    .footer {
+      display: flex;
+      justify-content: center;
+      margin-top: 26px;
+    }
 
     .view-all {
       font-family: var(--ag-font-heading);
@@ -90,6 +97,7 @@ TEMPLATE.innerHTML = `
       display: grid;
       grid-template-columns: repeat(var(--ag-columns), 1fr);
       gap: var(--ag-card-gap);
+      touch-action: pan-y;
     }
 
     @media (max-width: 900px) {
@@ -173,19 +181,19 @@ TEMPLATE.innerHTML = `
   </style>
 
   <div class="header">
+    <div class="header-spacer"></div>
     <h2></h2>
-    <div class="header-actions">
-      <div class="nav-arrows" hidden>
-        <button class="prev" aria-label="Previous artists">&#8249;</button>
-        <button class="next" aria-label="Next artists">&#8250;</button>
-      </div>
-      <a class="view-all"></a>
+    <div class="nav-arrows" hidden>
+      <button class="prev" aria-label="Previous artists">&#8249;</button>
+      <button class="next" aria-label="Next artists">&#8250;</button>
     </div>
   </div>
 
   <p class="placeholder-message" hidden>No artists linked yet.</p>
 
   <div class="grid"></div>
+
+  <div class="footer"><a class="view-all"></a></div>
 `;
 
 class ArtistsGallery extends HTMLElement {
@@ -209,25 +217,11 @@ class ArtistsGallery extends HTMLElement {
     this._page = 0;
   }
 
-  get apiEndpoint() {
-    return this.getAttribute("api-endpoint") || "";
-  }
-
-  get pageTitle() {
-    return this.getAttribute("title") || "Artists";
-  }
-
-  get viewAllText() {
-    return this.getAttribute("view-all-text") || "View All Artists";
-  }
-
-  get viewAllUrl() {
-    return this.getAttribute("view-all-url") || "#";
-  }
-
-  get artistUrlBase() {
-    return this.getAttribute("artist-url-base") || "/artists";
-  }
+  get apiEndpoint() { return this.getAttribute("api-endpoint") || ""; }
+  get pageTitle() { return this.getAttribute("title") || "Artists"; }
+  get viewAllText() { return this.getAttribute("view-all-text") || "View All Artists"; }
+  get viewAllUrl() { return this.getAttribute("view-all-url") || "#"; }
+  get artistUrlBase() { return this.getAttribute("artist-url-base") || "/artists"; }
 
   get columns() {
     if (window.matchMedia("(max-width: 480px)").matches) return 2;
@@ -254,20 +248,11 @@ class ArtistsGallery extends HTMLElement {
 
     const prevBtn = root.querySelector(".prev");
     const nextBtn = root.querySelector(".next");
-    prevBtn.onclick = () => {
-      if (this._allArtists.length === 0) return;
-      const totalPages = Math.max(1, Math.ceil(this._allArtists.length / this.perPage));
-      this._page = (this._page - 1 + totalPages) % totalPages;
-      this._renderPage();
-    };
-    nextBtn.onclick = () => {
-      if (this._allArtists.length === 0) return;
-      const totalPages = Math.max(1, Math.ceil(this._allArtists.length / this.perPage));
-      this._page = (this._page + 1) % totalPages;
-      this._renderPage();
-    };
+    prevBtn.onclick = () => this._goToPage(this._page - 1);
+    nextBtn.onclick = () => this._goToPage(this._page + 1);
 
     this._loadData();
+    this._setupSwipe();
 
     if (!this._resizeListenerAttached) {
       this._resizeListenerAttached = true;
@@ -350,6 +335,15 @@ class ArtistsGallery extends HTMLElement {
     });
   }
 
+  _goToPage(page) {
+    if (this._allArtists.length === 0) return;
+    const totalPages = Math.max(1, Math.ceil(this._allArtists.length / this.perPage));
+    if (page < 0) page = totalPages - 1;
+    if (page >= totalPages) page = 0;
+    this._page = page;
+    this._renderPage();
+  }
+
   _toggleArrows(show) {
     const arrows = this.shadowRoot.querySelector(".nav-arrows");
     arrows.hidden = !show;
@@ -372,6 +366,29 @@ class ArtistsGallery extends HTMLElement {
       `;
       grid.appendChild(card);
     }
+  }
+
+  _setupSwipe() {
+    const grid = this.shadowRoot.querySelector(".grid");
+    if (grid._swipeAttached) return;
+    grid._swipeAttached = true;
+
+    let startX = 0;
+    let startY = 0;
+
+    grid.addEventListener("touchstart", (e) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+
+    grid.addEventListener("touchend", (e) => {
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0) this._goToPage(this._page + 1);
+        else this._goToPage(this._page - 1);
+      }
+    }, { passive: true });
   }
 }
 
