@@ -347,8 +347,6 @@ class ArtistsGallery extends HTMLElement {
     requestAnimationFrame(() => this._fitNames());
   }
 
-  // Single-word names shrink to fit on one line.
-  // Multi-word names wrap onto a second line at normal size instead.
   _fitNames() {
     const names = this.shadowRoot.querySelectorAll(".name");
     names.forEach((el) => {
