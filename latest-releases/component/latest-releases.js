@@ -72,6 +72,7 @@ RELEASES_TEMPLATE.innerHTML = `
     flex: 1;
     align-content: start;
     touch-action: pan-y;
+    transition: transform 0.25s ease;
   }
 
   .card {
@@ -296,25 +297,68 @@ class LatestReleases extends HTMLElement {
     this._renderPage();
   }
 
+_totalPages() {
+  return Math.ceil(this._allReleases.length / this.perPage);
+}
+  
   _setupSwipe() {
-    const grid = this.shadowRoot.querySelector(".grid");
-    let startX = 0;
-    let startY = 0;
+  const grid = this.shadowRoot.querySelector(".grid");
+  let startX = 0;
+  let startY = 0;
+  let currentX = 0;
+  let dragging = false;
+  let horizontal = null;
 
-    grid.addEventListener("touchstart", (e) => {
-      startX = e.touches[0].clientX;
-      startY = e.touches[0].clientY;
-    }, { passive: true });
+  grid.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    currentX = startX;
+    dragging = true;
+    horizontal = null;
+    grid.style.transition = "none";
+  }, { passive: true });
 
-    grid.addEventListener("touchend", (e) => {
-      const dx = e.changedTouches[0].clientX - startX;
-      const dy = e.changedTouches[0].clientY - startY;
-      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
-        if (dx < 0) this._goToPage(this._page + 1);
-        else this._goToPage(this._page - 1);
-      }
-    }, { passive: true });
-  }
+  grid.addEventListener("touchmove", (e) => {
+    if (!dragging) return;
+    currentX = e.touches[0].clientX;
+    const dx = currentX - startX;
+    const dy = e.touches[0].clientY - startY;
+
+    if (horizontal === null) {
+      horizontal = Math.abs(dx) > Math.abs(dy);
+    }
+    if (!horizontal) return;
+
+    const atStart = this._page === 0;
+    const atEnd = this._page >= this._totalPages() - 1;
+    const resisted = (atStart && dx > 0) || (atEnd && dx < 0) ? dx * 0.35 : dx;
+    grid.style.transform = `translateX(${resisted}px)`;
+  }, { passive: true });
+
+  grid.addEventListener("touchend", () => {
+    if (!dragging) return;
+    dragging = false;
+    const dx = currentX - startX;
+    grid.style.transition = "transform 0.25s ease";
+
+    if (horizontal && Math.abs(dx) > 50) {
+      const dir = dx < 0 ? 1 : -1;
+      const width = grid.clientWidth;
+      grid.style.transform = `translateX(${-dir * width}px)`;
+
+      setTimeout(() => {
+        grid.style.transition = "none";
+        grid.style.transform = `translateX(${dir * width}px)`;
+        this._goToPage(this._page + dir);
+        requestAnimationFrame(() => {
+          grid.style.transition = "transform 0.25s ease";
+          grid.style.transform = "translateX(0)";
+        });
+      }, 250);
+    } else {
+      grid.style.transform = "translateX(0)";
+    }
+  });
 }
 
 customElements.define("latest-releases", LatestReleases);
